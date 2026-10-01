@@ -1,0 +1,573 @@
+/*
+ * flow-tree
+ *
+ * Theme it by setting these on the element you mount into (or a parent):
+ *   --ft-bg, --ft-surface, --ft-text, --ft-muted, --ft-border, --ft-line, --ft-accent, --ft-danger,
+ *   --ft-radius, --ft-line-width, --ft-node-width, --ft-gap, --ft-col-gap
+ * Per node type colors come from the `color` of the type.
+ */
+
+.ft-root {
+  --ft-bg: #f6f7f9;
+  --ft-surface: #fff;
+  --ft-hover: #f0f2f5;
+  --ft-text: #1d2327;
+  --ft-muted: #6b7280;
+  --ft-border: #dcdfe4;
+  --ft-line: #bfc5ce;
+  --ft-accent: #4f6bed;
+  --ft-danger: #d63638;
+  --ft-shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .08);
+  --ft-shadow-lg: 0 8px 24px rgba(16, 24, 40, .16);
+  --ft-radius: 10px;
+  --ft-line-width: 2px;
+  --ft-node-width: 260px;
+  --ft-gap: 44px;
+  --ft-col-gap: 14px;
+  --ft-stub: 18px;
+
+  position: relative;
+  overflow: auto;
+  box-sizing: border-box;
+  background: var(--ft-bg);
+  color: var(--ft-text);
+  font: 14px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  outline: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ft-root:not([data-theme="light"]) {
+    --ft-bg: #16181d;
+    --ft-surface: #21242b;
+    --ft-hover: #2a2e37;
+    --ft-text: #e8eaed;
+    --ft-muted: #9aa1ad;
+    --ft-border: #363b46;
+    --ft-line: #4a505c;
+    --ft-accent: #7c93ff;
+    --ft-danger: #ff6b6d;
+    --ft-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    --ft-shadow-lg: 0 8px 24px rgba(0, 0, 0, .5);
+  }
+}
+
+.ft-root[data-theme="dark"] {
+  --ft-bg: #16181d;
+  --ft-surface: #21242b;
+  --ft-hover: #2a2e37;
+  --ft-text: #e8eaed;
+  --ft-muted: #9aa1ad;
+  --ft-border: #363b46;
+  --ft-line: #4a505c;
+  --ft-accent: #7c93ff;
+  --ft-danger: #ff6b6d;
+  --ft-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  --ft-shadow-lg: 0 8px 24px rgba(0, 0, 0, .5);
+}
+
+.ft-root *,
+.ft-root *::before,
+.ft-root *::after {
+  box-sizing: border-box;
+}
+
+/* ---- layout */
+
+.ft-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: max-content;
+  min-width: 100%;
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+}
+
+.ft-branch,
+.ft-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* the dots at the top and bottom of the flow */
+.ft-start,
+.ft-finish {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ft-line);
+}
+
+/* ---- gaps, the lines between nodes */
+
+.ft-gap {
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--ft-gap);
+}
+
+.ft-gap::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: var(--ft-line-width);
+  margin-left: calc(var(--ft-line-width) / -2);
+  background: var(--ft-line);
+}
+
+.ft-readonly .ft-gap {
+  height: calc(var(--ft-gap) * .65);
+}
+
+.ft-add {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--ft-line);
+  border-radius: 50%;
+  background: var(--ft-surface);
+  color: var(--ft-muted);
+  cursor: pointer;
+  opacity: .6;
+  transition: opacity .12s, transform .12s, background .12s, color .12s, border-color .12s;
+}
+
+.ft-gap:hover .ft-add,
+.ft-add:focus-visible {
+  opacity: 1;
+  color: #fff;
+  background: var(--ft-accent);
+  border-color: var(--ft-accent);
+}
+
+.ft-add:focus-visible,
+.ft-action:focus-visible,
+.ft-pop-item:focus-visible {
+  outline: 2px solid var(--ft-accent);
+  outline-offset: 2px;
+}
+
+/* the first step of an empty flow */
+.ft-add-label {
+  width: auto;
+  height: 34px;
+  gap: 6px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border-style: dashed;
+  grid-auto-flow: column;
+  font: inherit;
+  font-weight: 600;
+  opacity: 1;
+  color: var(--ft-accent);
+  border-color: var(--ft-accent);
+}
+
+/* ---- nodes */
+
+.ft-node {
+  --ft-node-color: var(--ft-muted);
+
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: var(--ft-node-width);
+  padding: 12px 14px;
+  border: 1px solid var(--ft-border);
+  border-left: 4px solid var(--ft-node-color);
+  border-radius: var(--ft-radius);
+  background: var(--ft-surface);
+  box-shadow: var(--ft-shadow);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+  transition: box-shadow .12s, border-color .12s;
+}
+
+.ft-root:not(.ft-readonly) .ft-node {
+  touch-action: none;
+}
+
+.ft-readonly .ft-node,
+.ft-node.ft-locked {
+  cursor: default;
+}
+
+.ft-node:hover {
+  box-shadow: var(--ft-shadow), 0 0 0 1px var(--ft-line);
+}
+
+.ft-node:focus-visible,
+.ft-node.ft-selected {
+  border-color: var(--ft-accent);
+  box-shadow: 0 0 0 2px var(--ft-accent);
+}
+
+.ft-node.ft-unknown {
+  border-style: dashed;
+}
+
+.ft-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ft-node-color, var(--ft-muted)) 15%, transparent);
+  color: var(--ft-node-color, var(--ft-muted));
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.ft-icon img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.ft-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ft-title {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ft-sub {
+  display: block;
+  overflow: hidden;
+  color: var(--ft-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ft-lock {
+  flex: none;
+  display: grid;
+  color: var(--ft-muted);
+}
+
+.ft-actions {
+  position: absolute;
+  top: -15px;
+  right: 8px;
+  display: none;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--ft-border);
+  border-radius: 8px;
+  background: var(--ft-surface);
+  box-shadow: var(--ft-shadow);
+}
+
+.ft-node:hover .ft-actions,
+.ft-node:focus-within .ft-actions {
+  display: flex;
+}
+
+.ft-dragging .ft-actions {
+  display: none !important;
+}
+
+.ft-action {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ft-muted);
+  cursor: pointer;
+}
+
+.ft-action:hover:not(:disabled) {
+  background: var(--ft-hover);
+  color: var(--ft-text);
+}
+
+.ft-action.ft-danger:hover:not(:disabled) {
+  color: var(--ft-danger);
+}
+
+.ft-action:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+
+/* ---- branches */
+
+/* from a node down to the bar that spans its branches */
+.ft-link {
+  width: var(--ft-line-width);
+  height: var(--ft-stub);
+  background: var(--ft-line);
+}
+
+.ft-split {
+  display: flex;
+  align-items: stretch;
+}
+
+.ft-col {
+  --ft-branch-color: var(--ft-muted);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 var(--ft-col-gap);
+}
+
+/* the bars above and below the columns, each column draws its part of them */
+.ft-col::before,
+.ft-col::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: var(--ft-line-width);
+  background: var(--ft-line);
+}
+
+.ft-col::before {
+  top: 0;
+}
+
+.ft-col::after {
+  bottom: 0;
+}
+
+.ft-col:first-child::before,
+.ft-col:first-child::after {
+  left: 50%;
+}
+
+.ft-col:last-child::before,
+.ft-col:last-child::after {
+  right: 50%;
+}
+
+.ft-col:only-child::before,
+.ft-col:only-child::after {
+  display: none;
+}
+
+.ft-col-head {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: var(--ft-stub);
+}
+
+.ft-col-head::before,
+.ft-col-foot::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: var(--ft-line-width);
+  margin-left: calc(var(--ft-line-width) / -2);
+  background: var(--ft-line);
+}
+
+.ft-col-head::before {
+  height: var(--ft-stub);
+}
+
+.ft-col-foot {
+  position: relative;
+  flex: 1;
+  align-self: stretch;
+  min-height: var(--ft-stub);
+}
+
+.ft-col-foot::before {
+  bottom: 0;
+}
+
+/* a branch that stops doesn't join the others */
+.ft-col.ft-ended .ft-col-foot::before {
+  display: none;
+}
+
+.ft-split.ft-all-ended .ft-col::after {
+  display: none;
+}
+
+.ft-label {
+  position: relative;
+  z-index: 1;
+  padding: 2px 12px;
+  border: 1px solid color-mix(in srgb, var(--ft-branch-color) 55%, var(--ft-border));
+  border-radius: 999px;
+  background: var(--ft-surface);
+  color: var(--ft-branch-color);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ft-unused .ft-label {
+  border-style: dashed;
+  color: var(--ft-muted);
+}
+
+/* ---- dragging */
+
+.ft-dragging,
+.ft-dragging * {
+  cursor: grabbing !important;
+}
+
+.ft-drag-source {
+  opacity: .35;
+}
+
+.ft-dragging .ft-gap-off .ft-add {
+  display: none;
+}
+
+.ft-dragging .ft-gap:not(.ft-gap-off):not(.ft-gap-active) .ft-add {
+  opacity: .85;
+}
+
+.ft-gap-active .ft-add {
+  transform: scale(1.3);
+  opacity: 1;
+  color: #fff;
+  background: var(--ft-accent);
+  border-color: var(--ft-accent);
+}
+
+/* where it would land */
+.ft-gap-active::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--ft-node-width);
+  height: calc(var(--ft-gap) - 10px);
+  transform: translate(-50%, -50%);
+  border: 2px dashed var(--ft-accent);
+  border-radius: var(--ft-radius);
+  opacity: .55;
+  pointer-events: none;
+}
+
+.ft-ghost {
+  position: fixed;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--ft-accent);
+  border-radius: 50%;
+  background: var(--ft-surface);
+  box-shadow: var(--ft-shadow-lg);
+  pointer-events: none;
+}
+
+/* ---- picker */
+
+.ft-popover {
+  position: fixed;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  width: 288px;
+  max-height: min(380px, 70vh);
+  padding: 8px;
+  border: 1px solid var(--ft-border);
+  border-radius: 12px;
+  background: var(--ft-surface);
+  box-shadow: var(--ft-shadow-lg);
+}
+
+.ft-pop-search {
+  flex: none;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--ft-border);
+  border-radius: 8px;
+  background: var(--ft-bg);
+  color: var(--ft-text);
+  font: inherit;
+}
+
+.ft-pop-list {
+  overflow: auto;
+}
+
+.ft-pop-group {
+  padding: 8px 8px 4px;
+  color: var(--ft-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.ft-pop-none {
+  padding: 12px 8px;
+  color: var(--ft-muted);
+}
+
+.ft-pop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ft-pop-item:hover,
+.ft-pop-item:focus {
+  background: var(--ft-hover);
+}
+
+.ft-pop-item .ft-icon {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-root * {
+    transition: none !important;
+  }
+}

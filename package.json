@@ -1,0 +1,32 @@
+{
+  "name": "flow-tree",
+  "version": "0.1.0",
+  "description": "A zero-dependency flow-tree editor. Give it a list of nodes, get the edited list back.",
+  "private": true,
+  "type": "module",
+  "main": "dist/flow-tree.cjs",
+  "module": "dist/flow-tree.esm.js",
+  "types": "types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./dist/flow-tree.esm.js",
+      "require": "./dist/flow-tree.cjs"
+    },
+    "./style.css": "./dist/flow-tree.css"
+  },
+  "files": [
+    "dist",
+    "types",
+    "src"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "demo": "node scripts/serve.mjs",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  }
+}

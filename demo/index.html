@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>flow-tree demo</title>
+  <link rel="stylesheet" href="../src/flow-tree.css">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #fff; --text: #1d2327; --muted: #6b7280; --border: #dcdfe4; --panel: #fafbfc;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #101216; --text: #e8eaed; --muted: #9aa1ad; --border: #2c303a; --panel: #181b21; }
+    }
+    :root[data-theme="light"] { color-scheme: light; --bg: #fff; --text: #1d2327; --muted: #6b7280; --border: #dcdfe4; --panel: #fafbfc; }
+    :root[data-theme="dark"] { color-scheme: dark; --bg: #101216; --text: #e8eaed; --muted: #9aa1ad; --border: #2c303a; --panel: #181b21; }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { display: flex; flex-direction: column; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+
+    header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+    header h1 { margin: 0 12px 0 0; font-size: 15px; }
+    header .spacer { flex: 1; }
+    button, select { padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; cursor: pointer; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    label.check { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+
+    main { display: flex; flex: 1; min-height: 0; }
+    #flow { flex: 1; min-width: 0; }
+    aside { display: flex; flex-direction: column; width: 340px; border-left: 1px solid var(--border); background: var(--panel); }
+    aside section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    aside h2 { margin: 0 0 8px; color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+    aside input[type=text] { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; }
+    aside .row { display: flex; gap: 8px; margin-top: 8px; }
+    #json { flex: 1; min-height: 0; margin: 0; padding: 14px 16px; overflow: auto; font: 12px/1.5 ui-monospace, 'Cascadia Code', Consolas, monospace; white-space: pre; }
+    #empty { color: var(--muted); }
+    #log { color: var(--muted); font-size: 12px; }
+
+    @media (max-width: 760px) {
+      main { flex-direction: column; }
+      aside { width: auto; max-height: 45%; border-left: 0; border-top: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>flow-tree</h1>
+  <button id="undo" type="button">Undo</button>
+  <button id="redo" type="button">Redo</button>
+  <button id="reset" type="button">Reset</button>
+  <span class="spacer"></span>
+  <label class="check"><input id="readonly" type="checkbox"> Read-only</label>
+  <select id="theme" aria-label="Theme">
+    <option value="auto">Theme: auto</option>
+    <option value="light">Theme: light</option>
+    <option value="dark">Theme: dark</option>
+  </select>
+</header>
+
+<main>
+  <div id="flow"></div>
+
+  <aside>
+    <section>
+      <h2>Selected node</h2>
+      <div id="empty">Click a node. Drag one to move it.</div>
+      <div id="inspector" hidden>
+        <input id="title" type="text" aria-label="Title">
+        <div class="row">
+          <button id="delete" type="button">Delete</button>
+          <span id="log"></span>
+        </div>
+      </div>
+    </section>
+    <section style="padding-bottom: 0; border: 0"><h2>onChange(nodes)</h2></section>
+    <pre id="json"></pre>
+  </aside>
+</main>
+
+<script src="../dist/flow-tree.js"></script>
+<script>
+  const types = {
+    webhook: { name: 'Webhook received', group: 'Triggers', icon: '🪝', color: '#8b5cf6', description: 'Starts when a request arrives' },
+    form   : { name: 'Form submitted',   group: 'Triggers', icon: '📝', color: '#8b5cf6', description: 'Starts when someone submits a form' },
+    email  : { name: 'Send email',       group: 'Actions',  icon: '✉️', color: '#2563eb', description: 'Send a message' },
+    tag    : { name: 'Apply tag',        group: 'Actions',  icon: '🏷️', color: '#0d9488', description: 'Add a tag to the contact' },
+    wait   : { name: 'Wait',             group: 'Actions',  icon: '⏳', color: '#d97706', description: 'Pause before the next step' },
+    if     : {
+      name: 'If / else', group: 'Logic', icon: '🔀', color: '#16a34a', description: 'Branch on a condition',
+      branches: [{ key: 'yes', name: 'Yes', color: '#16a34a' }, { key: 'no', name: 'No', color: '#dc2626' }],
+    },
+    split  : {
+      name: 'Split test', group: 'Logic', icon: '🎲', color: '#16a34a', description: 'Send people down different paths',
+      // branches can depend on the node, change "ways" in the inspector's JSON to see it
+      branches: node => Array.from({ length: node.ways ?? 3 }, (_, i) => ({ key: `way${ i + 1 }`, name: String.fromCharCode(65 + i) })),
+    },
+    stop   : { name: 'Stop', group: 'Logic', icon: '⛔', color: '#dc2626', description: 'End the flow here', terminal: true },
+  }
+
+  const initial = () => [
+    { id: 'start', type: 'form', title: 'Newsletter signup' },
+    { id: 'welcome', type: 'email', title: 'Welcome email' },
+    { id: 'check', type: 'if', title: 'Opened the email?' },
+    { id: 'tag-yes', type: 'tag', title: 'Tag: engaged', parent: 'check', branch: 'yes' },
+    { id: 'wait-no', type: 'wait', title: 'Wait 3 days', parent: 'check', branch: 'no' },
+    { id: 'nudge', type: 'email', title: 'Nudge email', parent: 'check', branch: 'no' },
+    { id: 'bye', type: 'stop', parent: 'check', branch: 'no' },
+    { id: 'ab', type: 'split', title: 'Subject line test' },
+    { id: 'a', type: 'email', title: 'Subject A', parent: 'ab', branch: 'way1' },
+    { id: 'b', type: 'email', title: 'Subject B', parent: 'ab', branch: 'way2' },
+    { id: 'followup', type: 'email', title: 'Follow up', locked: true },
+  ]
+
+  const $ = id => document.getElementById(id)
+
+  const flow = FlowTree.mount('#flow', {
+    nodes: initial(),
+    types,
+    onChange: (nodes, change) => {
+      show(nodes)
+      $('log').textContent = `${ change.type }`
+      sync()
+    },
+    onSelect: node => inspect(node),
+  })
+
+  const show = nodes => $('json').textContent = JSON.stringify(nodes, null, 2)
+
+  const sync = () => {
+    $('undo').disabled = !flow.canUndo()
+    $('redo').disabled = !flow.canRedo()
+  }
+
+  const inspect = node => {
+    $('empty').hidden = Boolean(node)
+    $('inspector').hidden = !node
+    $('delete').disabled = Boolean(node?.locked)
+    if (node && document.activeElement !== $('title')) {
+      $('title').value = node.title ?? types[node.type]?.name ?? ''
+    }
+  }
+
+  $('title').addEventListener('input', e => {
+    const node = flow.getSelected()
+    // typing is one undo step
+    if (node) flow.update(node.id, { title: e.target.value }, { coalesce: `title:${ node.id }` })
+  })
+
+  $('delete').addEventListener('click', () => {
+    const node = flow.getSelected()
+    if (node) flow.remove(node.id)
+  })
+
+  $('undo').addEventListener('click', () => flow.undo())
+  $('redo').addEventListener('click', () => flow.redo())
+  $('reset').addEventListener('click', () => { flow.setNodes(initial()); show(flow.getNodes()); sync(); inspect(null) })
+  $('readonly').addEventListener('change', e => flow.setReadOnly(e.target.checked))
+  $('theme').addEventListener('change', e => {
+    flow.setTheme(e.target.value)
+    document.documentElement.dataset.theme = e.target.value === 'auto' ? '' : e.target.value
+  })
+
+  show(flow.getNodes())
+  sync()
+
+  // handy in the console
+  window.flow = flow
+</script>
+</body>
+</html>
