@@ -78,3 +78,7 @@ npm run demo    # http://localhost:5173/demo/
 - Keyboard moving of nodes. Selecting, deleting, undo and add (Tab to a `+`, Enter) work.
 - Groundhogg's trigger groups ("OR" benchmarks that hold their own branch) and the loop and skip lines of its logic editor. Only the tree structure is here.
 - Nothing is virtualised. Hundreds of nodes are fine, thousands will be slow because every change redraws.
+
+## License
+
+MIT

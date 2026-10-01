@@ -2,7 +2,8 @@
   "name": "flow-tree",
   "version": "0.1.0",
   "description": "A zero-dependency flow-tree editor. Give it a list of nodes, get the edited list back.",
-  "private": true,
+  "license": "MIT",
+  "repository": "github:tobeyadr/flow-tree",
   "type": "module",
   "main": "dist/flow-tree.cjs",
   "module": "dist/flow-tree.esm.js",
@@ -16,6 +17,7 @@
     "./style.css": "./dist/flow-tree.css"
   },
   "files": [
+    "LICENSE",
     "dist",
     "types",
     "src"
