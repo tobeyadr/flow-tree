@@ -5,6 +5,11 @@ import { FlowModel } from '../src/model.js'
 import { History } from '../src/history.js'
 
 const types = {
+  wait   : {
+    name : 'Wait',
+    title: node => node.data?.days ? `Wait ${ node.data.days } days` : null,
+  },
+  fixed  : { name: 'Fixed', title: 'Always this' },
   trigger: { name: 'Trigger', trigger: true },
   hook   : { name: 'Webhook', trigger: true },
   email  : { name: 'Email' },
@@ -365,4 +370,34 @@ test('adding a trigger next to one joins its group, moving it away leaves', () =
   m.move(added.id, { after: 'e' })
 
   assert.deepEqual(m.triggerGroup('t1').map(node => node.id), ['t1'])
+})
+
+test('a type can work out the title from the node', () => {
+
+  const m = model([
+    { id: 'w1', type: 'wait', data: { days: 3 } },
+    { id: 'w2', type: 'wait' },
+    { id: 'w3', type: 'wait', title: 'Cool off', data: { days: 3 } },
+    { id: 'w4', type: 'wait', title: '', data: { days: 5 } },
+    { id: 'f', type: 'fixed' },
+    { id: 'e', type: 'email' },
+    { id: 'x', type: 'email', title: 'Welcome' },
+  ])
+
+  const title = id => m.titleOf(m.get(id))
+
+  assert.equal(title('w1'), 'Wait 3 days')
+  // nothing derived, so what the type is called
+  assert.equal(title('w2'), 'Wait')
+  // its own title wins
+  assert.equal(title('w3'), 'Cool off')
+  // an empty one doesn't
+  assert.equal(title('w4'), 'Wait 5 days')
+  assert.equal(title('f'), 'Always this')
+  assert.equal(title('e'), 'Email')
+  assert.equal(title('x'), 'Welcome')
+
+  // follows the node as it changes
+  m.update('w1', { data: { days: 7 } })
+  assert.equal(title('w1'), 'Wait 7 days')
 })

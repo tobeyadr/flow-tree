@@ -70,6 +70,16 @@ export class FlowTree {
     return node ? JSON.parse(JSON.stringify(node)) : null
   }
 
+  /**
+   * What a node is called, its own title or the one its type makes from it
+   *
+   * @return string|null null if there's no such node
+   */
+  getTitle (id) {
+    const node = this.model.get(id)
+    return node ? this.model.titleOf(node) : null
+  }
+
   getSelected () {
     return this.selected === null ? null : this.getNode(this.selected)
   }

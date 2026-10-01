@@ -193,6 +193,24 @@ export class FlowModel {
     return [...new Set(this.childrenOf(node.id).map(child => child.branch))].filter(key => !declared.includes(key))
   }
 
+  /**
+   * What a node is called: its own title if it has one, otherwise what its type makes of it, otherwise the type's name
+   *
+   * @param node Object
+   * @return string
+   */
+  titleOf (node) {
+
+    if (node.title) {
+      return String(node.title)
+    }
+
+    const def = this.types[node.type]
+    const derived = typeof def?.title === 'function' ? def.title(node) : def?.title
+
+    return derived ? String(derived) : def?.name ?? node.type
+  }
+
   isTerminal (node) {
     return Boolean(this.types[node.type]?.terminal)
   }

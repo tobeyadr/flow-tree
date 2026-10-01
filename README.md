@@ -65,13 +65,110 @@ nodes: [
 - Light, dark, or follow the system. Colors and sizes are CSS variables, see the top of `flow-tree.css`.
 - Read-only mode for showing a flow.
 
-It deliberately doesn't draw settings panels. Selecting a node calls `onSelect`, show your own form and call `flow.update(id, patch)`. Pass `{ coalesce: 'title' }` while someone is typing so a burst of edits is one undo step.
+## A settings panel
+
+The library doesn't draw settings panels, your app knows what a step's settings are. The pattern is: `onSelect` tells you which node to show, your form calls `flow.update()` as people edit, and `onChange` tells you what to save.
+
+```html
+<div id="editor"></div>
+<form id="panel" hidden>
+  <label>Subject <input name="subject"></label>
+  <label>Wait (days) <input name="days" type="number" min="1"></label>
+</form>
+```
+
+```js
+const panel = document.getElementById('panel')
+
+// which fields each type has
+const fieldsFor = { email: ['subject'], wait: ['days'] }
+
+const flow = mount('#editor', {
+  nodes,
+  types: {
+    email: { name: 'Send email', title: node => node.data?.subject || null },
+    wait:  { name: 'Wait',       title: node => node.data?.days && `Wait ${ node.data.days } days` },
+  },
+
+  // show the form for the node that was clicked, hide it when nothing is selected
+  onSelect: node => fill(node),
+
+  // save, and keep the form in step, because undo and redo change settings too
+  onChange: (nodes, change) => {
+    save(nodes)
+    fill(flow.getSelected(), change.type !== 'update')
+  },
+})
+
+// put the node's settings in the form, but leave the field being typed in alone
+// unless the change didn't come from typing (undo, redo)
+function fill (node, force = false) {
+
+  panel.hidden = !node
+
+  if (!node) return
+
+  panel.dataset.id = node.id
+
+  for (const input of panel.elements) {
+    // only the fields this type has
+    input.closest('label').hidden = !fieldsFor[node.type]?.includes(input.name)
+
+    if (force || document.activeElement !== input) {
+      input.value = node.data?.[input.name] ?? ''
+    }
+  }
+}
+
+// edit
+panel.addEventListener('input', e => {
+
+  const node = flow.getNode(panel.dataset.id)
+  const value = e.target.type === 'number' ? e.target.valueAsNumber : e.target.value
+
+  if (!node || Number.isNaN(value)) return
+
+  flow.update(node.id, {
+    // update() replaces each field you give it, so spread what's there to keep the rest
+    data: { ...node.data, [e.target.name]: value },
+  }, {
+    // a burst of typing in one field is one undo step
+    coalesce: `${ node.id }:${ e.target.name }`,
+  })
+})
+```
+
+Things worth knowing about `update(id, patch, options?)`:
+
+- It sets the fields in `patch` and leaves the others. It's **shallow**: `{ data: { days: 3 } }` replaces the whole `data` object, so spread the old one like above, or keep settings as top-level fields.
+- `undefined` removes a field: `flow.update(id, { title: undefined })`.
+- It can't move a node. `id`, `parent` and `branch` in the patch are ignored, use `move()` for that.
+- It redraws the card and calls `onChange` with `{ type: 'update', ids: [id] }`.
+- Changes with the same `coalesce` key made within a second of each other are one undo step. Without it, every keystroke is its own step.
+- It works while the node is locked. Locking only stops dragging and deleting from the UI.
+- Changing a setting can change a node's branches when its type works them out from the node, like a split test with a number of ways. Nodes in a branch that's gone aren't deleted, they show in an "Unused branch" column.
+
+`demo/index.html` has a complete version of this, with a panel built from a list of fields for each type.
+
+## Titles
+
+A card is titled with the node's own `title` if it has one. Otherwise the type's `title` is used: a string, or a function of the node, so the title can come from the settings and follow them as they change. If there's none, or the function returns nothing, it's the type's `name`.
+
+```js
+types: {
+  wait: { name: 'Wait', title: node => node.data?.days && `Wait ${ node.data.days } days` },
+}
+
+flow.getTitle('w1')   // 'Wait 3 days', whichever of the three it came from
+```
+
+The type's name is shown under a title that's different from it. `renderNode(node, type, title)` is given the title if you draw the card yourself.
 
 ## API
 
 | | |
 |---|---|
-| `getNodes()` `getNode(id)` `getSelected()` | read, always copies |
+| `getNodes()` `getNode(id)` `getSelected()` `getTitle(id)` | read, always copies |
 | `setNodes(nodes)` | replace, like on load. Doesn't call `onChange`, clears undo |
 | `add(type, at?, init?)` `move(id, at)` `remove(id)` `duplicate(id, at?)` `update(id, patch, opts?)` `lock(id)` `unlock(id)` | change, each calls `onChange` |
 | `undo()` `redo()` `canUndo()` `canRedo()` | history |

@@ -21,6 +21,13 @@ const types = {
 createServer(async (req, res) => {
 
   const url = new URL(req.url, 'http://localhost')
+
+  // the demo is the only page, so don't leave the root a 404
+  if (url.pathname === '/') {
+    res.writeHead(302, { location: '/demo/' }).end()
+    return
+  }
+
   let path = normalize(decodeURIComponent(url.pathname)).replace(/^([/\\])+/, '')
 
   if (path === '' || path.endsWith('/') || path.endsWith('\\')) {

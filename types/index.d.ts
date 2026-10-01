@@ -13,7 +13,7 @@ export interface FlowNode {
   parent?: Id | null
   /** Which of the parent's branches, defaults to the parent's first */
   branch?: string | null
-  /** Shown instead of the type's name */
+  /** Shown instead of what the type calls it. Leave it out to use the type's `title` or `name`. */
   title?: string
   /** Locked nodes can't be dragged or deleted from the UI */
   locked?: boolean
@@ -29,6 +29,11 @@ export interface BranchDef {
 
 export interface NodeType {
   name: string
+  /**
+   * What nodes of this type are called, worked out from the node, like `node => 'Wait ' + node.data.days + ' days'`.
+   * A node's own `title` wins over it, and nothing returned means the type's `name`. It's called on every draw.
+   */
+  title?: string | ((node: FlowNode) => string | null | undefined)
   /** Types are grouped by this in the picker */
   group?: string
   /** An image URL, or text like an emoji */
@@ -84,7 +89,7 @@ export interface FlowTreeOptions {
    * Draw what's inside a node's card, next to its icon. Return an element or text, never HTML.
    * Return nothing for the default (title and type name).
    */
-  renderNode?: (node: FlowNode, type: NodeType | undefined) => Node | string | Array<Node | string> | null | undefined
+  renderNode?: (node: FlowNode, type: NodeType | undefined, title: string) => Node | string | Array<Node | string> | null | undefined
 
   /** Use your own picker. Resolve with a type key, `{ type, init }` to start the node with fields, or null to cancel. */
   pickType?: (args: PickTypeArgs) => Promise<string | { type: string; init?: Partial<FlowNode> } | null>
@@ -110,6 +115,8 @@ export class FlowTree {
   getNodes(): FlowNode[]
   getNode(id: Id): FlowNode | null
   getSelected(): FlowNode | null
+  /** What a node is called: its own title, or the one its type makes from it. Null if there's no such node. */
+  getTitle(id: Id): string | null
 
   /** Replace the nodes, like when they're loaded. Doesn't call onChange, and clears undo history. Throws if they aren't a tree. */
   setNodes(nodes: FlowNode[]): void
@@ -161,6 +168,7 @@ export class FlowModel {
   children(parent?: Id | null, branch?: string | null): FlowNode[]
   descendants(id: Id): Id[]
   isTrigger(node: FlowNode): boolean
+  titleOf(node: FlowNode): string
   /** The triggers in the same OR group, in order, empty if the node isn't a trigger */
   triggerGroup(id: Id): FlowNode[]
 }

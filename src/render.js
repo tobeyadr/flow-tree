@@ -137,9 +137,9 @@ export const renderFlow = (model, {
 
     const def = model.types[node.type]
     const known = Boolean(def)
-    const title = node.title ?? def?.name ?? node.type
+    const title = model.titleOf(node)
 
-    const body = renderNode?.(node, def) ?? [
+    const body = renderNode?.(node, def, title) ?? [
       h('div', { class: 'ft-title' }, title),
       def?.name && def.name !== title ? h('div', { class: 'ft-sub' }, def.name) : null,
     ]
