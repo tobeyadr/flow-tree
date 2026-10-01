@@ -38,6 +38,12 @@ export interface NodeType {
   description?: string
   /** Makes this a node with branches. A function gets the node, so the branches can depend on it. */
   branches?: Array<string | BranchDef> | ((node: FlowNode) => Array<string | BranchDef>)
+  /**
+   * Makes this a trigger. Triggers next to each other in a branch are an OR group: any one of them starts or
+   * continues the flow. Each has steps of its own that only run after it, in its first branch ("then" unless
+   * `branches` says otherwise). The group at the very start of the flow has nothing above it.
+   */
+  trigger?: boolean
   /** Nothing can run after it, so no add button follows it and its branch doesn't join the others */
   terminal?: boolean
   /** Set false to leave it out of the picker, default true */
@@ -60,6 +66,7 @@ export interface PickTypeArgs {
   root: HTMLElement
   anchor: HTMLElement
   at: At
+  /** The types that can go here, only triggers for the add button of an OR group */
   types: Record<string, NodeType>
   signal: AbortSignal
 }
@@ -85,6 +92,8 @@ export interface FlowTreeOptions {
   /** Make ids for new nodes, default is random */
   newId?: () => Id
   readOnly?: boolean
+  /** How branches fork and join, default is 'straight' (right angles) */
+  connectors?: 'straight' | 'curved'
   theme?: 'auto' | 'light' | 'dark'
   /** Label of the button in an empty flow, default "Add step" */
   emptyLabel?: string
@@ -131,6 +140,7 @@ export class FlowTree {
   setReadOnly(readOnly: boolean): void
   setTypes(types: Record<string, NodeType>): void
   setTheme(theme: 'auto' | 'light' | 'dark'): void
+  setConnectors(connectors: 'straight' | 'curved'): void
   /** Draw again, for when what renderNode shows has changed */
   render(): void
   destroy(): void
@@ -150,4 +160,7 @@ export class FlowModel {
   get(id: Id): FlowNode | null
   children(parent?: Id | null, branch?: string | null): FlowNode[]
   descendants(id: Id): Id[]
+  isTrigger(node: FlowNode): boolean
+  /** The triggers in the same OR group, in order, empty if the node isn't a trigger */
+  triggerGroup(id: Id): FlowNode[]
 }

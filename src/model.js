@@ -16,6 +16,8 @@ const sameId = (a, b) => a === null || a === undefined ? b === null || b === und
 
 const RESERVED = ['id', 'parent', 'branch']
 
+const TRIGGER_BRANCH = 'then'
+
 let counter = 0
 
 export const defaultNewId = () => `n_${ Date.now().toString(36) }${ ( counter++ ).toString(36) }${ Math.random().toString(36).slice(2, 5) }`
@@ -162,7 +164,15 @@ export class FlowModel {
   branchesOf (node) {
 
     const def = this.types[node.type]
-    const branches = typeof def?.branches === 'function' ? def.branches(node) : def?.branches
+    let branches = typeof def?.branches === 'function' ? def.branches(node) : def?.branches
+
+    // a trigger's own branch is the steps that only run after it, see isTrigger()
+    if (!branches && def?.trigger) {
+      branches = [{
+        key : TRIGGER_BRANCH,
+        name: 'Then',
+      }]
+    }
 
     return ( branches ?? [] ).map(branch => typeof branch === 'string' ? {
       key : branch,
@@ -185,6 +195,43 @@ export class FlowModel {
 
   isTerminal (node) {
     return Boolean(this.types[node.type]?.terminal)
+  }
+
+  /**
+   * Triggers next to each other in a branch are an OR group, any of them starts or continues the flow.
+   * Each can have steps of its own that only run after it, in its first branch ("then" unless the type says otherwise).
+   */
+  isTrigger (node) {
+    return Boolean(this.types[node.type]?.trigger)
+  }
+
+  /**
+   * The triggers in the same OR group as a trigger, in order
+   *
+   * @param id
+   * @return Object[] empty if the node isn't a trigger
+   */
+  triggerGroup (id) {
+
+    const node = this.need(id)
+
+    if (!this.isTrigger(node)) {
+      return []
+    }
+
+    const siblings = this.children(node.parent, node.branch)
+    let from = siblings.indexOf(node)
+    let to = from
+
+    while (from > 0 && this.isTrigger(siblings[from - 1])) {
+      from--
+    }
+
+    while (to < siblings.length - 1 && this.isTrigger(siblings[to + 1])) {
+      to++
+    }
+
+    return siblings.slice(from, to + 1)
   }
 
   // ---- positions

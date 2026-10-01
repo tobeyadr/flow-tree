@@ -53,6 +53,10 @@
   <button id="reset" type="button">Reset</button>
   <span class="spacer"></span>
   <label class="check"><input id="readonly" type="checkbox"> Read-only</label>
+  <select id="lines" aria-label="Connectors">
+    <option value="straight">Lines: straight</option>
+    <option value="curved">Lines: curved</option>
+  </select>
   <select id="theme" aria-label="Theme">
     <option value="auto">Theme: auto</option>
     <option value="light">Theme: light</option>
@@ -83,8 +87,8 @@
 <script src="../dist/flow-tree.js"></script>
 <script>
   const types = {
-    webhook: { name: 'Webhook received', group: 'Triggers', icon: '🪝', color: '#8b5cf6', description: 'Starts when a request arrives' },
-    form   : { name: 'Form submitted',   group: 'Triggers', icon: '📝', color: '#8b5cf6', description: 'Starts when someone submits a form' },
+    webhook: { name: 'Webhook received', group: 'Triggers', trigger: true, icon: '🪝', color: '#8b5cf6', description: 'Starts when a request arrives' },
+    form   : { name: 'Form submitted',   group: 'Triggers', trigger: true, icon: '📝', color: '#8b5cf6', description: 'Starts when someone submits a form' },
     email  : { name: 'Send email',       group: 'Actions',  icon: '✉️', color: '#2563eb', description: 'Send a message' },
     tag    : { name: 'Apply tag',        group: 'Actions',  icon: '🏷️', color: '#0d9488', description: 'Add a tag to the contact' },
     wait   : { name: 'Wait',             group: 'Actions',  icon: '⏳', color: '#d97706', description: 'Pause before the next step' },
@@ -102,6 +106,9 @@
 
   const initial = () => [
     { id: 'start', type: 'form', title: 'Newsletter signup' },
+    // triggers next to each other are an OR group, each can have steps that only run after it
+    { id: 'hook', type: 'webhook', title: 'Zapier webhook' },
+    { id: 'zap-tag', type: 'tag', title: 'Tag: from Zapier', parent: 'hook' },
     { id: 'welcome', type: 'email', title: 'Welcome email' },
     { id: 'check', type: 'if', title: 'Opened the email?' },
     { id: 'tag-yes', type: 'tag', title: 'Tag: engaged', parent: 'check', branch: 'yes' },
@@ -158,6 +165,7 @@
   $('redo').addEventListener('click', () => flow.redo())
   $('reset').addEventListener('click', () => { flow.setNodes(initial()); show(flow.getNodes()); sync(); inspect(null) })
   $('readonly').addEventListener('change', e => flow.setReadOnly(e.target.checked))
+  $('lines').addEventListener('change', e => flow.setConnectors(e.target.value))
   $('theme').addEventListener('change', e => {
     flow.setTheme(e.target.value)
     document.documentElement.dataset.theme = e.target.value === 'auto' ? '' : e.target.value

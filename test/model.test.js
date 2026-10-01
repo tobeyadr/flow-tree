@@ -5,7 +5,8 @@ import { FlowModel } from '../src/model.js'
 import { History } from '../src/history.js'
 
 const types = {
-  trigger: { name: 'Trigger' },
+  trigger: { name: 'Trigger', trigger: true },
+  hook   : { name: 'Webhook', trigger: true },
   email  : { name: 'Email' },
   stop   : { name: 'Stop', terminal: true },
   if     : { name: 'If', branches: [{ key: 'yes', name: 'Yes' }, { key: 'no', name: 'No' }] },
@@ -316,4 +317,52 @@ test('history has a limit', () => {
   }
 
   assert.deepEqual(h.past, ['s7', 's8', 's9'])
+})
+
+test('triggers next to each other are an OR group', () => {
+
+  const m = model([
+    { id: 't1', type: 'trigger' },
+    { id: 't2', type: 'hook' },
+    { id: 'e1', type: 'email' },
+    { id: 't3', type: 'trigger' },
+  ])
+
+  assert.deepEqual(m.triggerGroup('t2').map(node => node.id), ['t1', 't2'])
+  assert.deepEqual(m.triggerGroup('t1').map(node => node.id), ['t1', 't2'])
+  assert.deepEqual(m.triggerGroup('t3').map(node => node.id), ['t3'])
+  assert.deepEqual(m.triggerGroup('e1'), [])
+})
+
+test('a trigger has a branch of its own for the steps that only run after it', () => {
+
+  const m = model([
+    { id: 't1', type: 'trigger' },
+    { id: 't2', type: 'hook' },
+    { id: 'x', type: 'email', parent: 't2' },
+    { id: 'e', type: 'email' },
+  ])
+
+  assert.equal(m.get('x').branch, 'then')
+  assert.deepEqual(m.toJSON().map(node => node.id), ['t1', 't2', 'x', 'e'])
+  assert.deepEqual(m.branchesOf(m.get('t1')).map(branch => branch.key), ['then'])
+
+  // dragging the trigger takes its steps with it
+  m.move('t2', { after: 'e' })
+
+  assert.deepEqual(m.toJSON().map(node => node.id), ['t1', 'e', 't2', 'x'])
+  assert.deepEqual(m.triggerGroup('t1').map(node => node.id), ['t1'])
+})
+
+test('adding a trigger next to one joins its group, moving it away leaves', () => {
+
+  const m = model([{ id: 't1', type: 'trigger' }, { id: 'e', type: 'email' }])
+
+  const added = m.add('hook', { after: 't1' })
+
+  assert.deepEqual(m.triggerGroup('t1').map(node => node.id), ['t1', added.id])
+
+  m.move(added.id, { after: 'e' })
+
+  assert.deepEqual(m.triggerGroup('t1').map(node => node.id), ['t1'])
 })

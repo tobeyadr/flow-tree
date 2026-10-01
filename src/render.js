@@ -38,7 +38,11 @@ export const renderFlow = (model, {
   const cards = new Map()
   const gaps = []
 
-  const Gap = (at, { label = null, hidden = false } = {}) => {
+  /**
+   * @param at Object where adding or dropping here puts a node
+   * @param only string|undefined a type flag, only types with it can be added or dropped here
+   */
+  const Gap = (at, { label = null, hidden = false, only } = {}) => {
 
     if (hidden) {
       return null
@@ -53,6 +57,52 @@ export const renderFlow = (model, {
     gaps.push({
       el,
       at,
+      only,
+    })
+
+    return el
+  }
+
+  /**
+   * The "OR" between two triggers, which a trigger can be dropped on to go between them
+   */
+  const OrSlot = at => {
+
+    const label = h('span', { class: 'ft-or-label' }, 'OR')
+    const el = h('div', { class: 'ft-or' }, label)
+
+    if (!readOnly) {
+      gaps.push({
+        el,
+        hit : label,
+        at,
+        only: 'trigger',
+      })
+    }
+
+    return el
+  }
+
+  /**
+   * The add button after a group's last trigger, for another trigger
+   */
+  const AddTrigger = at => {
+
+    if (readOnly) {
+      return null
+    }
+
+    const el = h('div', { class: 'ft-or-add' }, h('button', {
+      type        : 'button',
+      class       : 'ft-add',
+      'aria-label': 'Add trigger',
+      title       : 'Add trigger',
+    }, icon('plus', 12)))
+
+    gaps.push({
+      el,
+      at,
+      only: 'trigger',
     })
 
     return el
@@ -159,6 +209,36 @@ export const renderFlow = (model, {
   const Item = node => h('div', { class: 'ft-item' }, [Card(node), Split(node)])
 
   /**
+   * Triggers next to each other: any of them starts or continues the flow, and each has its own steps that only run
+   * after it. Below them the flow carries on as one.
+   */
+  const TriggerGroup = group => {
+
+    const several = group.length > 1
+
+    const columns = group.flatMap((node, i) => {
+
+      const branch = model.branchesOf(node)[0]?.key
+      const own = branch === undefined ? [] : model.children(node.id, branch)
+      const showBranch = branch !== undefined && ( several || own.length > 0 )
+
+      return [
+        i > 0 ? OrSlot({ after: group[i - 1].id }) : null,
+        h('div', { class: `ft-col ft-tcol${ own.length && model.isTerminal(own[own.length - 1]) ? ' ft-ended' : '' }` }, [
+          Card(node),
+          showBranch ? Branch(node.id, branch) : null,
+          showBranch ? h('div', { class: 'ft-col-foot' }) : null,
+        ]),
+      ]
+    })
+
+    return h('div', { class: 'ft-group' }, [
+      h('div', { class: `ft-tcols${ several ? ' ft-several' : '' }` }, columns),
+      AddTrigger({ after: group[group.length - 1].id }),
+    ])
+  }
+
+  /**
    * The nodes in a branch, with a gap before each and after the last
    */
   const Branch = (parent, branch) => {
@@ -171,6 +251,36 @@ export const renderFlow = (model, {
 
     const empty = nodes.length === 0 && parent === null
 
+    const items = []
+
+    for (let i = 0; i < nodes.length; i++) {
+
+      const node = nodes[i]
+
+      items.push(Gap(i === 0 ? {
+        ...where,
+        position: 'start',
+      } : { after: nodes[i - 1].id }, {
+        // nothing runs after a node that ends the flow, so nothing goes right after it,
+        // and nothing goes before the triggers the flow starts with
+        hidden: ( i > 0 && model.isTerminal(nodes[i - 1]) ) || ( parent === null && i === 0 && model.isTrigger(node) ),
+      }))
+
+      if (!model.isTrigger(node)) {
+        items.push(Item(node))
+        continue
+      }
+
+      // triggers next to each other are one OR group
+      const group = [node]
+
+      while (i + 1 < nodes.length && model.isTrigger(nodes[i + 1])) {
+        group.push(nodes[++i])
+      }
+
+      items.push(TriggerGroup(group))
+    }
+
     return h('div', {
       class  : 'ft-branch',
       dataset: {
@@ -178,16 +288,7 @@ export const renderFlow = (model, {
         branch: branch ?? '',
       },
     }, [
-      ...nodes.flatMap((node, i) => [
-        Gap(i === 0 ? {
-          ...where,
-          position: 'start',
-        } : { after: nodes[i - 1].id }, {
-          // nothing runs after a node that ends the flow, so nothing goes right after it
-          hidden: i > 0 && model.isTerminal(nodes[i - 1]),
-        }),
-        Item(node),
-      ]),
+      ...items,
       Gap(nodes.length ? { after: nodes[nodes.length - 1].id } : {
         ...where,
         position: 'end',

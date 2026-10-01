@@ -3,6 +3,7 @@ import { History } from './history.js'
 import { renderFlow } from './render.js'
 import { attachDrag } from './drag.js'
 import { pickType as defaultPicker } from './picker.js'
+import { drawCurves } from './curves.js'
 
 const isTyping = el => el?.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]')
 
@@ -23,6 +24,8 @@ export class FlowTree {
     this.root = root
     this.options = options
     this.readOnly = Boolean(options.readOnly)
+    this.connectors = options.connectors === 'curved' ? 'curved' : 'straight'
+    this.flow = null
     this.selected = null
     this.gaps = []
     this.cards = new Map()
@@ -40,6 +43,7 @@ export class FlowTree {
     root.setAttribute('tabindex', '-1')
     root.setAttribute('data-theme', options.theme ?? 'auto')
     root.classList.toggle('ft-readonly', this.readOnly)
+    root.classList.toggle('ft-curved', this.connectors === 'curved')
 
     this.listeners = [
       [root, 'click', e => this.onClick(e)],
@@ -289,6 +293,38 @@ export class FlowTree {
     this.root.setAttribute('data-theme', theme)
   }
 
+  /**
+   * @param connectors string 'straight' or 'curved'
+   */
+  setConnectors (connectors) {
+    this.connectors = connectors === 'curved' ? 'curved' : 'straight'
+    this.root.classList.toggle('ft-curved', this.connectors === 'curved')
+    this.connect()
+  }
+
+  /**
+   * Draw the curves if they're on, and again whenever the flow changes size, like when the editor is resized
+   */
+  connect () {
+
+    this.resizer?.disconnect()
+    this.resizer = null
+    this.flow?.querySelector(':scope > .ft-curves')?.remove()
+
+    if (this.connectors !== 'curved' || !this.flow) {
+      return
+    }
+
+    const flow = this.flow
+
+    drawCurves(flow)
+
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizer = new ResizeObserver(() => drawCurves(flow))
+      this.resizer.observe(flow)
+    }
+  }
+
   // ---- drawing
 
   /**
@@ -311,6 +347,8 @@ export class FlowTree {
 
     this.root.querySelector(':scope > .ft-flow')?.remove()
     this.root.prepend(el)
+    this.flow = el
+    this.connect()
 
     if (focused !== null) {
       ( this.cards.get(focused) ?? this.root ).focus({ preventScroll: true })
@@ -319,11 +357,12 @@ export class FlowTree {
 
   destroy () {
     this.aborts.abort()
+    this.resizer?.disconnect()
     this.stopDrag()
     this.listeners.forEach(([el, type, fn]) => el.removeEventListener(type, fn))
     this.root.querySelector(':scope > .ft-flow')?.remove()
     this.root.querySelector(':scope > .ft-popover')?.remove()
-    this.root.classList.remove('ft-root', 'ft-readonly', 'ft-dragging')
+    this.root.classList.remove('ft-root', 'ft-readonly', 'ft-dragging', 'ft-curved')
     this.root.removeAttribute('data-theme')
   }
 
@@ -399,6 +438,9 @@ export class FlowTree {
 
     const choose = this.options.pickType ?? defaultPicker
 
+    // the add button of an OR group is for triggers
+    const types = gap.only ? Object.fromEntries(Object.entries(this.model.types).filter(([, def]) => def[gap.only])) : this.model.types
+
     let choice
 
     try {
@@ -406,7 +448,7 @@ export class FlowTree {
         root  : this.root,
         anchor: button,
         at    : gap.at,
-        types : this.model.types,
+        types,
         signal: this.aborts.signal,
       })
     }

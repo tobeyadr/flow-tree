@@ -59,6 +59,12 @@ export const attachDrag = tree => {
 
     const targets = tree.gaps.filter(gap => {
 
+      // between triggers and after the last one only triggers go
+      if (gap.only && !tree.model.types[node.type]?.[gap.only]) {
+        gap.el.classList.add('ft-gap-off')
+        return false
+      }
+
       let loc
 
       try {
@@ -103,7 +109,7 @@ export const attachDrag = tree => {
 
     drag.targets.forEach(gap => {
 
-      const d = distance(drag.x, drag.y, gap.el.getBoundingClientRect())
+      const d = distance(drag.x, drag.y, ( gap.hit ?? gap.el ).getBoundingClientRect())
 
       if (d < bestDistance) {
         best = gap
